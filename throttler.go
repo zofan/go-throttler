@@ -8,8 +8,8 @@ import (
 )
 
 type Throttler struct {
-	Limit  int
-	Period time.Duration
+	limit  int
+	period time.Duration
 
 	keys map[uint64]key
 
@@ -23,8 +23,8 @@ type key struct {
 
 func New(limit int, period time.Duration) *Throttler {
 	return &Throttler{
-		Limit:  limit,
-		Period: period,
+		limit:  limit,
+		period: period,
 		keys:   make(map[uint64]key),
 	}
 }
@@ -33,7 +33,7 @@ func (t *Throttler) Clean() {
 	t.mu.Lock()
 	now := time.Now()
 	for ip, c := range t.keys {
-		if now.Sub(c.reset) < 0 {
+		if now.After(c.reset) {
 			delete(t.keys, ip)
 		}
 	}
@@ -44,9 +44,10 @@ func (t *Throttler) Allow(k uint64) (remaining int, reset time.Time) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
+	now := time.Now()
 	c, ok := t.keys[k]
-	if !ok || time.Now().After(c.reset) {
-		c = key{remaining: t.Limit, reset: time.Now().Add(t.Period)}
+	if !ok || now.After(c.reset) {
+		c = key{remaining: t.limit, reset: now.Add(t.period)}
 		t.keys[k] = c
 	}
 
