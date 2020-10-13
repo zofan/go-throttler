@@ -1,8 +1,6 @@
 package throttler
 
 import (
-	"encoding/binary"
-	"net"
 	"sync"
 	"time"
 )
@@ -11,7 +9,7 @@ type Throttler struct {
 	limit  int
 	period time.Duration
 
-	keys map[uint64]key
+	keys map[uint64]*key
 
 	mu sync.Mutex
 }
@@ -25,16 +23,24 @@ func New(limit int, period time.Duration) *Throttler {
 	return &Throttler{
 		limit:  limit,
 		period: period,
-		keys:   make(map[uint64]key),
+		keys:   make(map[uint64]*key),
 	}
+}
+
+func (t *Throttler) Limit() int {
+	return t.limit
+}
+
+func (t *Throttler) Period() time.Duration {
+	return t.period
 }
 
 func (t *Throttler) Clean() {
 	t.mu.Lock()
 	now := time.Now()
-	for ip, c := range t.keys {
+	for k, c := range t.keys {
 		if now.After(c.reset) {
-			delete(t.keys, ip)
+			delete(t.keys, k)
 		}
 	}
 	t.mu.Unlock()
@@ -45,24 +51,14 @@ func (t *Throttler) Allow(k uint64) (remaining int, reset time.Time) {
 	defer t.mu.Unlock()
 
 	now := time.Now()
-	c, ok := t.keys[k]
-	if !ok || now.After(c.reset) {
-		c = key{remaining: t.limit, reset: now.Add(t.period)}
-		t.keys[k] = c
+	_, ok := t.keys[k]
+	if !ok || now.After(t.keys[k].reset) {
+		t.keys[k] = &key{remaining: t.limit, reset: now.Add(t.period)}
 	}
 
-	if c.remaining > 0 {
-		c.remaining--
+	if t.keys[k].remaining > 0 {
+		t.keys[k].remaining--
 	}
 
-	return c.remaining, c.reset
-}
-
-func LongIP(ipRaw string) uint64 {
-	ip := net.ParseIP(ipRaw)
-	if ip == nil {
-		return 0
-	}
-
-	return binary.BigEndian.Uint64(ip)
+	return t.keys[k].remaining, t.keys[k].reset
 }
