@@ -35,7 +35,7 @@ func (t *Throttler) Period() time.Duration {
 	return t.period
 }
 
-func (t *Throttler) Clean() {
+func (t *Throttler) Clear() {
 	t.mu.Lock()
 	now := time.Now()
 	for k, c := range t.keys {
