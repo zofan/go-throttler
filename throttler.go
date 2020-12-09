@@ -36,8 +36,8 @@ func (t *Throttler) Period() time.Duration {
 }
 
 func (t *Throttler) Clear() {
-	t.mu.Lock()
 	now := time.Now()
+	t.mu.Lock()
 	for k, c := range t.keys {
 		if now.After(c.reset) {
 			delete(t.keys, k)
@@ -47,10 +47,11 @@ func (t *Throttler) Clear() {
 }
 
 func (t *Throttler) Allow(k uint64) (remaining int, reset time.Time) {
+	now := time.Now()
+
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	now := time.Now()
 	_, ok := t.keys[k]
 	if !ok || now.After(t.keys[k].reset) {
 		t.keys[k] = &key{remaining: t.limit, reset: now.Add(t.period)}
